@@ -47,12 +47,28 @@ def extract_spots(file_path: str) -> AiResponse:
 
         try:
             result: AiResponse = AiResponse.model_validate_json(response.text)
+            if len(result.spots) == 0:
+                raise EmptyAnswerException(f"No spots found for {file_path}")
             return result
         except ValidationError as e:
-            return AiResponse()
+            new_message = (f"Parsing failed, you didn't match the pattern. Please, return "
+                           f"valid response. Here is the error message:\n{e}")
+        except EmptyAnswerException as e:
+            new_message = (f"You returned an empty list. Try again finding a spot. "
+                           f"If you insist there is no spot, return the same response.")
+
+        response = chat.send_message(
+            message=new_message
+        )
+        result: AiResponse = AiResponse.model_validate_json(response.text)
+        return result
 
     finally:
         try:
             client.files.delete(name=video_file.name)
         except:
             pass
+
+
+class EmptyAnswerException(Exception):
+    pass

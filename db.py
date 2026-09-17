@@ -1,4 +1,5 @@
-from models import Spot
+from models.spots import Spot
+from models.auth import UserInDB
 from constants import DATABASE_URL
 
 from uuid import UUID
@@ -35,6 +36,32 @@ def insert_spots(spots: list[Spot], user_id: UUID):
                 if query is not None and values is not None:
                     cursor.execute(query, values)
             conn.commit()
+
+def insert_user(user: UserInDB):
+    with get_connection() as conn:
+        with conn.cursor() as cursor:
+            cursor.execute(
+                """
+                    INSERT INTO users (username, hashed_password, disabled)
+                    VALUES (%s, %s, %s)
+                """,
+                (user.username, user.hashed_password, user.disabled)
+           )
+            conn.commit()
+
+
+def select_user(username: str) -> UserInDB | None :
+    with get_connection() as conn:
+        with conn.cursor() as cursor:
+            cursor.execute("""
+                SELECT id, username, disabled, hashed_password FROM users WHERE username = %s
+            """, (username,)
+            )
+            row = cursor.fetchone()
+            if row is not None:
+                return UserInDB.model_validate(row)
+            return None
+
 
 def get_query_and_values(spot, spot_id):
     match spot.category:

@@ -1,5 +1,5 @@
 from constants import GEMINI_API_KEY
-from models import AiResponse
+from models.spots import AiResponse
 
 from google.genai.types import GenerateContentConfig
 from google import genai

@@ -68,3 +68,6 @@ Spot = Annotated[
     Union[Hike, Summit, Viewpoint, City, Beach, Food, Culture, Camp, OtherSpot],
     Field(discriminator="category")
 ]
+
+class AiResponse(BaseModel):
+    spots: list[Spot] = Field(default_factory=list, description="A list of spots extracted from the input.")

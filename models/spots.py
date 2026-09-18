@@ -1,7 +1,12 @@
+from datetime import datetime
+
 from pydantic import BaseModel, Field
 from typing import Literal, Annotated, Union
+from uuid import UUID
 
 class BaseSpot(BaseModel):
+    id: UUID | None = None
+    created_at: datetime | None = None
     name: str = Field(description="The name of the spot",)
     commentary: str | None = Field(default=None, description="Anything important mentioned in the input or anything that needs to be addressed.")
     source_link: str | None = Field(default=None, description="The link to the source page, post or video, if it is known.")

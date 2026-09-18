@@ -7,3 +7,6 @@ class VideoRequest(BaseModel):
 class UserCreateRequest(BaseModel):
     username: str
     password: str
+
+class UserSpotsRequest(BaseModel):
+    limit: int = 50

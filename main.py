@@ -1,6 +1,6 @@
 import db
 from agent import extract_spots
-from models.requests import VideoRequest, UserCreateRequest
+from models.requests import VideoRequest, UserCreateRequest, UserSpotsRequest
 from models.auth import User, UserInDB, Token, TokenData
 from source_downloader import download_video
 from constants import SECRET_KEY, DUMMY_HASH, ALGORITHM, ACCESS_TOKEN_EXPIRE_MINUTES
@@ -118,6 +118,7 @@ def save_video_generator(url: str, user_id: str):
             return
         else:
             for spot in response.spots:
+                spot.source_link = url
                 logging.info(f"Saving {spot.category}: {spot.name}")
             yield f"data: {len(response.spots)} spots found! Saving...\n\n"
         db.insert_spots(response.spots, user_id=user_id)
@@ -152,3 +153,12 @@ def save_video(
         content = save_video_generator(str(input.url), user_id=current_user.id),
         media_type="text/event-stream"
     )
+
+@app.get("/spots")
+def get_user_spots(
+    current_user: Annotated[User, Depends(get_current_active_user)],
+    filters: Annotated[UserSpotsRequest, Depends()],
+):
+    query = db.select_user_spots(current_user.id, filters.limit)
+    return query
+

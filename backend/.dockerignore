@@ -1,0 +1,5 @@
+.env
+app.log
+create_script.sql
+downloads/
+__pycache__

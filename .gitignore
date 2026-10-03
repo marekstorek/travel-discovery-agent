@@ -1,6 +1,7 @@
 downloads/
 .idea
 backend/.env
+backend/.env.yaml
 *.log
 /old/*
 .venv/

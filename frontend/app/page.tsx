@@ -41,8 +41,8 @@ export interface BaseSpot {
   created_at?: string | null;
   [key: string]: any;
 }
-
-const API_BASE = "http://localhost:8000";
+const API_BASE = "https://travel-discovery-agent-513892807779.europe-west1.run.app";
+// const API_BASE = "http://localhost:8000";
 
 // --- Map Styling by Category ---
 const CATEGORY_STYLES: Record<string, { bg: string; border: string; svg: string }> = {

@@ -64,7 +64,7 @@ async def get_current_user(token: Annotated[str, Depends(oauth2_scheme)]):
         token_data = TokenData(username=username)
     except InvalidTokenError:
         raise credentials_exception
-    user = db.select_user(username=token_data.username)
+    user = await db.select_user(username=token_data.username)
     if user is None:
         raise credentials_exception
     return user
@@ -76,8 +76,8 @@ async def get_current_active_user(
         raise HTTPException(status_code=400, detail="Inactive user")
     return current_user
 
-def authenticate_user(username: str, password: str):
-    user = db.select_user(username)
+async def authenticate_user(username: str, password: str):
+    user = await db.select_user(username)
     if not user:
         verify_password(password, DUMMY_HASH)
         return False
@@ -86,10 +86,10 @@ def authenticate_user(username: str, password: str):
     return user
 
 @app.post("/token")
-def login_for_access_token(
+async def login_for_access_token(
     form_data: Annotated[OAuth2PasswordRequestForm, Depends()],
 ) -> Token:
-    user = authenticate_user(form_data.username, form_data.password)
+    user = await authenticate_user(form_data.username, form_data.password)
     if not user:
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
@@ -103,27 +103,28 @@ def login_for_access_token(
     return Token(access_token=access_token, token_type="bearer")
 
 @app.post("/sign-up")
-def sign_up(
+async def sign_up(
     new_user_request: UserCreateRequest,
 ):
-    existing_user = db.select_user(new_user_request.username)
+    existing_user = await db.select_user(new_user_request.username)
     if existing_user is not None:
         raise HTTPException(status_code=409, detail="User with this username already exists")
     hashed_password = get_password_hash(new_user_request.password)
     db_user = UserInDB(username=new_user_request.username, hashed_password=hashed_password, disabled=False)
-    db.insert_user(db_user)
+    await db.insert_user(db_user)
     return {"message": "User created successfully!"}
 
 @app.get("/")
-def root():
+async def root():
     return {"message": "Travel Discovery Agent API runs!"}
 
-def save_video_generator(url: str, user_id: str):
+async def save_video_generator(url: str, user_id: str):
     yield "data: Received your request:\n\n"
+    video_path = None
     try:
-        video_path = download_video(url)
+        video_path = await download_video(url)
         yield "data: Processing video.\n\n"
-        response = extract_spots(video_path)
+        response = await extract_spots(video_path)
         if len(response.spots) == 0:
             yield "data: No spots found!\n\n"
             return
@@ -132,7 +133,7 @@ def save_video_generator(url: str, user_id: str):
                 spot.source_link = url
                 logging.info(f"Saving {spot.category}: {spot.name}")
             yield f"data: {len(response.spots)} spots found! Saving...\n\n"
-        db.insert_spots(response.spots, user_id=user_id)
+        await db.insert_spots(response.spots, user_id=user_id)
         yield f"data: Done! {len(response.spots)} spots saved successfully!\n\n"
     except DownloadError as e:
         logging.error(e)
@@ -155,7 +156,7 @@ def save_video_generator(url: str, user_id: str):
             pass
 
 @app.post("/save-video")
-def save_video(
+async def save_video(
     input: VideoRequest,
     current_user: Annotated[User, Depends(get_current_active_user)],
 ):
@@ -166,10 +167,10 @@ def save_video(
     )
 
 @app.get("/spots")
-def get_user_spots(
+async def get_user_spots(
     current_user: Annotated[User, Depends(get_current_active_user)],
     filters: Annotated[UserSpotsRequest, Depends()],
 ):
-    query = db.select_user_spots(current_user.id, filters.limit)
+    query = await db.select_user_spots(current_user.id, filters.limit)
     return query
 

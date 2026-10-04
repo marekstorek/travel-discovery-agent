@@ -1,3 +1,5 @@
+import asyncio
+
 from constants import GEMINI_API_KEY
 from models.spots import AiResponse
 
@@ -16,56 +18,58 @@ You may need to complete some information from your knowledge or find it on the 
 None. Please, return the response as a json - list of spots with this schema: {json.dumps(AiResponse.model_json_schema(), ensure_ascii=False)}
 """
 
-def extract_spots(file_path: str) -> AiResponse:
-    client = genai.Client(api_key=GEMINI_API_KEY)
-    video_file = client.files.upload(file=file_path)
+async def extract_spots(file_path: str) -> AiResponse:
+    client = genai.Client(api_key=GEMINI_API_KEY).aio
 
     try:
-        while video_file.state.name == "PROCESSING":
-            time.sleep(5)
-            video_file = client.files.get(name=video_file.name)
+        async with asyncio.timeout(120):
+            video_file = await client.files.upload(file=file_path)
 
-        if video_file.state.name == "FAILED" or video_file.state.name != "ACTIVE":
-            raise RuntimeError(f"Video upload failed: {video_file.error}")
+            while video_file.state.name == "PROCESSING":
+                await asyncio.sleep(4)
+                video_file = await client.files.get(name=video_file.name)
 
-        chat = client.chats.create(
-            model="gemini-3.5-flash",
-            config=GenerateContentConfig(
-                response_mime_type="application/json",
-                system_instruction=system_instructions,
-                temperature=0.5,
-                # tools=[types.Tool(google_search=types.GoogleSearch())]
+            if video_file.state.name == "FAILED" or video_file.state.name != "ACTIVE":
+                raise RuntimeError(f"Video upload failed: {video_file.error}")
+
+            chat = client.chats.create(
+                model="gemini-3.5-flash",
+                config=GenerateContentConfig(
+                    response_mime_type="application/json",
+                    system_instruction=system_instructions,
+                    temperature=0.5,
+                    # tools=[types.Tool(google_search=types.GoogleSearch())]
+                )
             )
-        )
 
-        response = chat.send_message(
-            message=[
-                video_file,
-                "Extract all the spots from the source. "
-            ],
-        )
+            response = await chat.send_message(
+                message=[
+                    video_file,
+                    "Extract all the spots from the source. "
+                ],
+            )
 
-        try:
+            try:
+                result: AiResponse = AiResponse.model_validate_json(response.text)
+                if len(result.spots) == 0:
+                    raise EmptyAnswerException(f"No spots found for {file_path}")
+                return result
+            except ValidationError as e:
+                new_message = (f"Parsing failed, you didn't match the pattern. Please, return "
+                               f"valid response. Here is the error message:\n{e}")
+            except EmptyAnswerException as e:
+                new_message = (f"You returned an empty list. Try again finding a spot. "
+                               f"If you insist there is no spot, return the same response.")
+
+            response = await chat.send_message(
+                message=new_message
+            )
             result: AiResponse = AiResponse.model_validate_json(response.text)
-            if len(result.spots) == 0:
-                raise EmptyAnswerException(f"No spots found for {file_path}")
             return result
-        except ValidationError as e:
-            new_message = (f"Parsing failed, you didn't match the pattern. Please, return "
-                           f"valid response. Here is the error message:\n{e}")
-        except EmptyAnswerException as e:
-            new_message = (f"You returned an empty list. Try again finding a spot. "
-                           f"If you insist there is no spot, return the same response.")
-
-        response = chat.send_message(
-            message=new_message
-        )
-        result: AiResponse = AiResponse.model_validate_json(response.text)
-        return result
 
     finally:
         try:
-            client.files.delete(name=video_file.name)
+            await client.files.delete(name=video_file.name)
         except:
             pass
 
